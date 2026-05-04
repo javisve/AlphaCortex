@@ -1,0 +1,32 @@
+# API Keys and Secrets
+backend/.env
+.env
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+.venv/
+.env/
+venv/
+ENV/
+build/
+dist/
+.pytest_cache/
+*.log
+
+# MQL5 (MetaTrader)
+# Ignorar los binarios compilados y logs del EA
+ea/*.ex5
+ea/*.log
+
+# Docker
+docker-data/
+*.db
+*.sqlite3
+
+# IDEs and OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
