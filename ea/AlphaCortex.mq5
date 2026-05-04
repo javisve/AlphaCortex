@@ -1,5 +1,5 @@
 //+------------------------------------------------------------------+
-//|                                          AI_Fund_Manager.mq5    |
+//|                                          AlphaCortex.mq5         |
 //|                                              Javier Sobrino Vega |
 //|                                                                  |
 //|  Multi-symbol AI-driven portfolio manager.                       |
@@ -75,8 +75,8 @@ int OnInit() {
   // internally
   EventSetTimer(5);
 
-  PrintFormat("[AI FM] Started. Poll every %d min. Backend: %s", InpPollMinutes,
-              InpBackendUrl);
+  PrintFormat("[AlphaCortex] Started. Poll every %d min. Backend: %s",
+              InpPollMinutes, InpBackendUrl);
   g_statusMsg = "Waiting for first poll...";
 
   return INIT_SUCCEEDED;
@@ -256,13 +256,13 @@ string CallBackend(const string &payload) {
   if (statusCode <= 0) {
     int err = GetLastError();
     PrintFormat(
-        "[AI FM] WebRequest error: code=%d, err=%d. Is URL whitelisted?",
+        "[AlphaCortex] WebRequest error: code=%d, err=%d. Is URL whitelisted?",
         statusCode, err);
     return "";
   }
 
   if (statusCode != 200) {
-    PrintFormat("[AI FM] Backend returned HTTP %d", statusCode);
+    PrintFormat("[AlphaCortex] Backend returned HTTP %d", statusCode);
     return "";
   }
 
@@ -284,7 +284,7 @@ void ProcessBackendResponse(const string &json) {
   // Extract portfolio array
   int portfolioStart = StringFind(json, "\"portfolio\":[");
   if (portfolioStart < 0) {
-    Print("[AI FM] No portfolio array in response");
+    Print("[AlphaCortex] No portfolio array in response");
     return;
   }
 
@@ -325,7 +325,7 @@ void ProcessBackendResponse(const string &json) {
       break; // End of portfolio array
   }
 
-  PrintFormat("[AI FM] Parsed %d decisions. Regime=%s Cash=%.0f%%",
+  PrintFormat("[AlphaCortex] Parsed %d decisions. Regime=%s Cash=%.0f%%",
               ArraySize(decisions), g_lastRegime, g_cashTarget * 100);
 
   // ── Execute decisions ──────────────────────────────────────────
@@ -365,7 +365,7 @@ void OpenPosition(const string symbol, const string action, double targetMargin,
                   double slPct, double tpPct) {
   // Ensure symbol is in Market Watch
   if (!SymbolSelect(symbol, true)) {
-    PrintFormat("[AI FM] Cannot select symbol: %s", symbol);
+    PrintFormat("[AlphaCortex] Cannot select symbol: %s", symbol);
     return;
   }
 
@@ -381,7 +381,7 @@ void OpenPosition(const string symbol, const string action, double targetMargin,
   }
 
   if (!synced) {
-    PrintFormat("[AI FM] No price data for %s after waiting", symbol);
+    PrintFormat("[AlphaCortex] No price data for %s after waiting", symbol);
     return;
   }
 
@@ -399,7 +399,7 @@ void OpenPosition(const string symbol, const string action, double targetMargin,
   // Calculate margin for 1 lot
   if (!OrderCalcMargin(otype, symbol, 1.0, price, marginPer1) ||
       marginPer1 <= 0) {
-    PrintFormat("[AI FM] Cannot calculate margin for %s", symbol);
+    PrintFormat("[AlphaCortex] Cannot calculate margin for %s", symbol);
     return;
   }
 
@@ -413,13 +413,14 @@ void OpenPosition(const string symbol, const string action, double targetMargin,
   // Verify margin sufficiency
   double actualMargin = 0;
   if (!OrderCalcMargin(otype, symbol, lots, price, actualMargin)) {
-    PrintFormat("[AI FM] Cannot calculate margin verification for %s", symbol);
+    PrintFormat("[AlphaCortex] Cannot calculate margin verification for %s",
+                symbol);
     return;
   }
   double freeMargin = AccountInfoDouble(ACCOUNT_MARGIN_FREE);
   if (actualMargin > freeMargin * 0.95) {
-    PrintFormat("[AI FM] Not enough margin for %s: need=%.2f have=%.2f", symbol,
-                actualMargin, freeMargin);
+    PrintFormat("[AlphaCortex] Not enough margin for %s: need=%.2f have=%.2f",
+                symbol, actualMargin, freeMargin);
     return;
   }
 
@@ -442,14 +443,14 @@ void OpenPosition(const string symbol, const string action, double targetMargin,
   if (!isBuy && sl < price + minDist)
     sl = NormalizeDouble(price + minDist, digits);
 
-  bool ok = isBuy ? g_trade.Buy(lots, symbol, price, sl, tp, "AI_FM")
-                  : g_trade.Sell(lots, symbol, price, sl, tp, "AI_FM");
+  bool ok = isBuy ? g_trade.Buy(lots, symbol, price, sl, tp, "AlphaCortex")
+                  : g_trade.Sell(lots, symbol, price, sl, tp, "AlphaCortex");
 
   if (ok)
-    PrintFormat("[AI FM] %s %s: %.2f lots @ %.5f SL=%.5f TP=%.5f margin=%.2f",
+    PrintFormat("[AlphaCortex] %s %s: %.2f lots @ %.5f SL=%.5f TP=%.5f margin=%.2f",
                 action, symbol, lots, price, sl, tp, actualMargin);
   else
-    PrintFormat("[AI FM] Order failed %s %s: %s", action, symbol,
+    PrintFormat("[AlphaCortex] Order failed %s %s: %s", action, symbol,
                 g_trade.ResultRetcodeDescription());
 }
 
@@ -466,10 +467,9 @@ void ClosePosition(const string symbol) {
     if (PositionGetInteger(POSITION_MAGIC) != InpMagicNumber)
       continue;
 
-    if (g_trade.PositionClose(ticket))
-      PrintFormat("[AI FM] Closed position %s (ticket=%llu)", symbol, ticket);
-    else
-      PrintFormat("[AI FM] Close failed %s: %s", symbol,
+      PrintFormat("[AlphaCortex] Closed position %s (ticket=%llu)", symbol,
+                  ticket);
+      PrintFormat("[AlphaCortex] Close failed %s: %s", symbol,
                   g_trade.ResultRetcodeDescription());
   }
 }
@@ -514,7 +514,7 @@ void CheckDailyDrawdown() {
   double ddPct = (g_startDayEquity - equity) / g_startDayEquity * 100.0;
   if (ddPct >= InpMaxDailyDDPct) {
     g_haltedDueToDD = true;
-    PrintFormat("[AI FM] ⛔ Daily drawdown limit hit: %.2f%% (limit=%.2f%%)",
+    PrintFormat("[AlphaCortex] ⛔ Daily drawdown limit hit: %.2f%% (limit=%.2f%%)",
                 ddPct, InpMaxDailyDDPct);
   }
 }
@@ -538,7 +538,7 @@ void UpdateDashboard() {
   }
 
   string info = "";
-  info += "━━━ AI FUND MANAGER ━━━\n";
+  info += "━━━ ALPHACORTEX AI ━━━\n";
   info += StringFormat("Balance:  $%.2f\n", balance);
   info += StringFormat("Equity:   $%.2f\n", equity);
   info += StringFormat("Free Mgn: $%.2f\n", freeMargin);
