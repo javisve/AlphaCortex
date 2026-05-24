@@ -39,6 +39,16 @@ logger = logging.getLogger(__name__)
 settings = get_settings()
 router = APIRouter()
 
+# Use WATCHLIST from .env if available, otherwise fallback to TOP50_WATCHLIST
+if settings.watchlist:
+    ACTIVE_WATCHLIST = [s.strip() for s in settings.watchlist.split(",") if s.strip()]
+    logger.info(f"Using custom watchlist from .env: {len(ACTIVE_WATCHLIST)} symbols")
+else:
+    # Use the one defined in screener.py or fallback
+    from services.screener import TOP50_WATCHLIST
+    ACTIVE_WATCHLIST = TOP50_WATCHLIST
+    logger.info("Using default TOP50 watchlist from screener.py")
+
 CACHE_TTL_SECONDS = 3600  # 1 hour — don't re-evaluate if called again within an hour
 
 
@@ -72,9 +82,9 @@ async def portfolio_review(
         return PortfolioReviewResponse(**cached_data)
 
     # ── 2. Screener ───────────────────────────────────────────────────────────
-    # TOP50_WATCHLIST for fast MVP testing; swap to ALL_SYMBOLS for production
+    # Use the dynamic watchlist (from .env or default)
     candidates = await screen_symbols(
-        symbols=TOP50_WATCHLIST,
+        symbols=ACTIVE_WATCHLIST,
         top_n=settings.screener_top_n,
         account_balance=request.account.balance,
         max_margin_pct=20.0,  # Darwinex stock margin

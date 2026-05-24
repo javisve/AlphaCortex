@@ -17,6 +17,7 @@ class Settings(BaseSettings):
     redis_url: str = "redis://localhost:6379/0"
 
     # Screener
+    watchlist: str = ""
     screener_top_n: int = 30
     max_positions: int = 10
 

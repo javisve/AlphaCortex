@@ -33,6 +33,12 @@ input group "=== Order Management ===" input double InpDefaultSLPct =
 input double InpDefaultTPPct = 10.0; // Default TP % from entry (if AI omits)
 input int InpMagicNumber = 777001;
 
+input group "=== Market Hours ===" input bool InpUseAutoSession =
+    true;                              // Use Broker Session (Auto)
+input string InpManualStart = "16:30"; // Manual Start (HH:MM)
+input string InpManualEnd = "23:00";   // Manual End (HH:MM)
+input bool InpTradeWeekends = false;   // Trade Weekends?
+
 //+------------------------------------------------------------------+
 //| Structs                                                          |
 //+------------------------------------------------------------------+
@@ -99,19 +105,48 @@ void OnTick() {
 }
 
 //+------------------------------------------------------------------+
-//| Check if US Market is open (16:30 - 23:00 Server Time, Mon-Fri)  |
+//| Check if Market is open (Auto-Session or Manual)                |
 //+------------------------------------------------------------------+
 bool IsMarketOpen() {
   MqlDateTime dt;
-  TimeToStruct(TimeCurrent(), dt);
+  datetime now = TimeCurrent();
+  TimeToStruct(now, dt);
 
-  // 0 = Sunday, 6 = Saturday
-  if (dt.day_of_week == 0 || dt.day_of_week == 6)
+  // 1. Weekend check
+  if (!InpTradeWeekends && (dt.day_of_week == 0 || dt.day_of_week == 6))
     return false;
 
+  // 2. Auto-session check (Official Broker Hours)
+  if (InpUseAutoSession) {
+    datetime from, to;
+    // Check the current day's session for the chart symbol
+    if (SymbolInfoSessionTrade(_Symbol, (ENUM_DAY_OF_WEEK)dt.day_of_week, 0,
+                               from, to)) {
+      // from/to are seconds since 00:00:00
+      long secondsToday = dt.hour * 3600 + dt.min * 60 + dt.sec;
+      if (secondsToday >= (long)from && secondsToday <= (long)to)
+        return true;
+      return false;
+    }
+  }
+
+  // 3. Manual fallback
   int currentMinutes = dt.hour * 60 + dt.min;
-  int startMinutes = 16 * 60 + 30; // 16:30
-  int endMinutes = 23 * 60;        // 23:00
+
+  // Parse manual strings "HH:MM"
+  string startParts[];
+  StringSplit(InpManualStart, ':', startParts);
+  int startMinutes = (ArraySize(startParts) >= 2)
+                         ? (int)StringToInteger(startParts[0]) * 60 +
+                               (int)StringToInteger(startParts[1])
+                         : 990; // Default 16:30
+
+  string endParts[];
+  StringSplit(InpManualEnd, ':', endParts);
+  int endMinutes = (ArraySize(endParts) >= 2)
+                       ? (int)StringToInteger(endParts[0]) * 60 +
+                             (int)StringToInteger(endParts[1])
+                       : 1380; // Default 23:00
 
   if (currentMinutes < startMinutes || currentMinutes >= endMinutes)
     return false;
@@ -447,8 +482,9 @@ void OpenPosition(const string symbol, const string action, double targetMargin,
                   : g_trade.Sell(lots, symbol, price, sl, tp, "AlphaCortex");
 
   if (ok)
-    PrintFormat("[AlphaCortex] %s %s: %.2f lots @ %.5f SL=%.5f TP=%.5f margin=%.2f",
-                action, symbol, lots, price, sl, tp, actualMargin);
+    PrintFormat(
+        "[AlphaCortex] %s %s: %.2f lots @ %.5f SL=%.5f TP=%.5f margin=%.2f",
+        action, symbol, lots, price, sl, tp, actualMargin);
   else
     PrintFormat("[AlphaCortex] Order failed %s %s: %s", action, symbol,
                 g_trade.ResultRetcodeDescription());
@@ -467,10 +503,12 @@ void ClosePosition(const string symbol) {
     if (PositionGetInteger(POSITION_MAGIC) != InpMagicNumber)
       continue;
 
+    if (g_trade.PositionClose(ticket))
       PrintFormat("[AlphaCortex] Closed position %s (ticket=%llu)", symbol,
                   ticket);
-      PrintFormat("[AlphaCortex] Close failed %s: %s", symbol,
-                  g_trade.ResultRetcodeDescription());
+    else
+      PrintFormat("[AlphaCortex] Close failed %s: %s (code %d)", symbol,
+                  g_trade.ResultRetcodeDescription(), g_trade.ResultRetcode());
   }
 }
 
@@ -514,8 +552,9 @@ void CheckDailyDrawdown() {
   double ddPct = (g_startDayEquity - equity) / g_startDayEquity * 100.0;
   if (ddPct >= InpMaxDailyDDPct) {
     g_haltedDueToDD = true;
-    PrintFormat("[AlphaCortex] ⛔ Daily drawdown limit hit: %.2f%% (limit=%.2f%%)",
-                ddPct, InpMaxDailyDDPct);
+    PrintFormat(
+        "[AlphaCortex] ⛔ Daily drawdown limit hit: %.2f%% (limit=%.2f%%)",
+        ddPct, InpMaxDailyDDPct);
   }
 }
 
