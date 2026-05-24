@@ -31,6 +31,8 @@ docker-data/
 .DS_Store
 Thumbs.db
 AlphaCortex.code-workspace
+
+# Docs
 implementation_plan.md
 alphacortex_cover.png
 linkedin_article.html
